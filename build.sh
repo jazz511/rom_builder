@@ -24,6 +24,35 @@ function trim_darwin() {
     cd ../
 }
 
+function dogbin()
+{
+  # Usage: dogbin <file> or | dogbin (Share dogbin logs)
+
+  # Variables
+  local tmp;
+  local url;
+
+  # Get output
+  tmp=$(mktemp);
+  if [ ! -z "${1}" ] && [ -f "${1}" ]; then
+    tee "${tmp}" < "${1}";
+  else
+    cat | tee "${tmp}";
+  fi;
+  echo '';
+
+  # Trim line rewrites
+  edittrimoutput "${tmp}";
+
+  # Upload to dogbin
+  url="http://del.dog/$(timeout -k 10 10 curl -X POST -s --data-binary @"${tmp}" \
+      https://del.dog/documents | grep key | cut -d \" -f 4)";
+  echo " dogbin: ${url}";
+
+  # Delete temp file
+  rm "${tmp}";
+}
+
 export outdir="out/target/product/$device"
 ci_url="$(echo "https://cloud.drone.io/"$ci_repo"/"$(cat /tmp/build_no)"/1/2" | tr -d " ")"
 
@@ -46,7 +75,7 @@ repo init -u "$manifest_url" -b "$branch" --depth 1 >/dev/null  2>&1
 echo "Sync started for "$manifest_url""
 telegram -M "Sync Started for ["$ROM"]("$manifest_url")"
 SYNC_START=$(date +"%s")
-trim_darwin >/dev/null   2>&1
+#trim_darwin >/dev/null   2>&1
 repo sync --force-sync --current-branch --no-tags --no-clone-bundle --optimized-fetch --prune -j$(nproc --all) -q 2>&1 >>logwe 2>&1
 bash /drone/src/clone.sh
 SYNC_END=$(date +"%s")
@@ -62,9 +91,9 @@ Build Started: [See Progress]("$ci_url")"
 
     . build/envsetup.sh >/dev/null  2>&1
     source /drone/src/config.sh
-    if [ -e device/"$oem"/"$device" ]; then
-        python3 /drone/src/dependency_cloner.py
-    fi
+#   if [ -e device/"$oem"/"$device" ]; then
+#       python3 /drone/src/dependency_cloner.py
+#   fi
     lunch "$rom_vendor_name"_"$device"-userdebug >/dev/null  2>&1
     mka bacon | grep "$device"
     BUILD_END=$(date +"%s")
@@ -95,6 +124,8 @@ Download: ["$zip_name"](https://github.com/"$release_repo"/releases/download/"$t
     fi
 else
     echo "Sync failed in $((SYNC_DIFF / 60)) minute(s) and $((SYNC_DIFF % 60)) seconds"
-    telegram -N -M "Sync failed in $((SYNC_DIFF / 60)) minute(s) and $((SYNC_DIFF % 60)) seconds"
+    dogbin logwe
+    telegram -N -M "Sync failed in $((SYNC_DIFF / 60)) minute(s) and $((SYNC_DIFF % 60)) seconds
+dogbin: ${url}"
     exit 1
 fi
